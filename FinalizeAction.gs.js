@@ -8,7 +8,7 @@ function finalizeAction() {
 
   // Loop through all rows in the Lending sheet (assuming the form is starting from row 2)
   var lastRow = lendingSheet.getLastRow();
-  
+
   for (var row = 2; row <= lastRow; row++) {
     var action = lendingSheet.getRange(row, 6).getValue(); // Action column in Lending sheet (Column F)
     var itemID = lendingSheet.getRange(row, 1).getValue(); // Item ID column (Column A)
@@ -24,127 +24,128 @@ function finalizeAction() {
     }
 
     // Find the corresponding item in the Inventory sheet
-    var inventoryData = inventorySheet.getRange(2, 1, inventorySheet.getLastRow(), 10).getValues(); // Full Inventory sheet range
+    var inventoryData = inventorySheet.getRange(2, 1, inventorySheet.getLastRow(), 12).getValues(); // Full Inventory sheet range with added Student Name and Class columns
+    var onHoldColumnIndex = 11; // Assuming "On Hold?" is in column 12 (index 11)
 
     for (var i = 0; i < inventoryData.length; i++) {
       if (inventoryData[i][0] == itemID) { // Match the Item ID in Inventory (Column A)
-        
+
         var currentStatus = inventoryData[i][4]; // Status column in Inventory (Column E)
 
         // Action: Lend Item
         if (action === 'Lend Item') {
-          // Check if the item is on hold
-          if (inventoryData[i][9] === 'Yes') { // Check if "On Hold?" column (Column J) is "Yes"
+          if (inventoryData[i][onHoldColumnIndex].toString().trim() === 'Yes') {
             ui.alert('Item is on Hold. Review "On Hold" and remove the hold before lending.');
-            return; // Exit the function to prevent further processing
+            return; // Exit if the item is on hold
           }
 
-          // Check if the item is already lent out
           if (currentStatus === 'On Lend') {
             ui.alert('Error: The item "' + inventoryData[i][1] + '" is already on loan.');
-            return; // Exit the function to prevent further processing
+            return;
           }
 
-          // Proceed with lending the item
-          inventorySheet.getRange(i + 2, 5).setValue('On Lend'); // Update Status to "On Lend"
-          inventorySheet.getRange(i + 2, 7).setValue(borrowerEmail); // Update Current Borrower
-          inventorySheet.getRange(i + 2, 8).setValue(new Date()); // Update Loan Date to current date
-          
-          var dueDate = new Date();
-          dueDate.setDate(dueDate.getDate() + 7); // Set Expected Return Date to 1 week from now
-          inventorySheet.getRange(i + 2, 9).setValue(dueDate); // Update Expected Return Date
-
-          // Log Lend Item action to History sheet
-          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Lend Item', dueDate, userEmail);
-
-        // Action: Return Item
-        } else if (action === 'Return Item') {
-          // Check if the item is already in stock
-          if (currentStatus === 'In Stock') {
-            ui.alert('Error: The item "' + inventoryData[i][1] + '" is already in stock.');
-            return; // Exit the function to prevent further processing
-          }
-
-          // Proceed with returning the item
-          inventorySheet.getRange(i + 2, 5).setValue('In Stock'); // Update Status to "In Stock"
-          inventorySheet.getRange(i + 2, 7).setValue(''); // Clear Current Borrower
-          inventorySheet.getRange(i + 2, 8).setValue(''); // Clear Loan Date
-          inventorySheet.getRange(i + 2, 9).setValue(''); // Clear Expected Return Date
-          
-          // Log Return Item action to History sheet
-          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Return Item', '', userEmail);
-
-        // Action: Hold Item
-        } else if (action === 'Hold Item') {
-          // Check if the item is already on hold
-          if (inventoryData[i][9] === 'Yes') { // Check if "On Hold?" column (Column J) is "Yes"
-            ui.alert('Error: The item "' + inventoryData[i][1] + '" is already on hold.');
-            return; // Exit the function to prevent further processing
-          }
-
-          // Proceed with placing the item on hold
-          inventorySheet.getRange(i + 2, 10).setValue('Yes'); // Set "On Hold?" column to "Yes"
-
-          // Insert record into On Hold sheet
-          var onHoldLastRow = onHoldSheet.getLastRow() + 1;
-          onHoldSheet.getRange(onHoldLastRow, 1).setValue(itemID); // Set Item ID
-          onHoldSheet.getRange(onHoldLastRow, 2).setValue(itemName); // Set Item Name
-          onHoldSheet.getRange(onHoldLastRow, 3).setValue(borrowerEmail); // Set Email
-          onHoldSheet.getRange(onHoldLastRow, 4).setValue(borrowerName); // Set Name
-          onHoldSheet.getRange(onHoldLastRow, 5).setValue(borrowerClass); // Set Class
-          onHoldSheet.getRange(onHoldLastRow, 6).setValue(new Date()); // Set Date Requested to current date
-
-          // Log Hold Item action to History sheet
-          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Hold Item', '', userEmail);
-
-        // Action: Remove Hold
-        } else if (action === 'Remove Hold') {
-          // Check if the item is on hold
-          if (inventoryData[i][9] !== 'Yes') { // Check if "On Hold?" column (Column J) is not "Yes"
-            ui.alert('Error: The item "' + inventoryData[i][1] + '" is not currently on hold.');
-            return; // Exit the function to prevent further processing
-          }
-
-          // Proceed with removing the hold
-          inventorySheet.getRange(i + 2, 10).setValue('No'); // Set "On Hold?" column to "No"
-
-          // Find and remove the record from the On Hold sheet
-          var onHoldData = onHoldSheet.getRange(2, 1, onHoldSheet.getLastRow(), 6).getValues(); // Full On Hold sheet range
+          // Clear item from On Hold sheet if previously on hold
+          var onHoldData = onHoldSheet.getRange(2, 1, onHoldSheet.getLastRow(), 6).getValues();
           for (var j = 0; j < onHoldData.length; j++) {
-            if (onHoldData[j][0].toString().trim() === itemID) { // Match the Item ID in On Hold sheet
-              onHoldSheet.deleteRow(j + 2); // Delete the row in the On Hold sheet
-              break; // Exit the loop once the record is found and deleted
+            if (onHoldData[j][0] == itemID) {
+              onHoldSheet.deleteRow(j + 2);
+              break;
             }
           }
 
-          // Log Remove Hold action to History sheet
-          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Remove Hold', '', userEmail);
+          inventorySheet.getRange(i + 2, 5).setValue('On Lend'); // Update Status to "On Lend"
+          inventorySheet.getRange(i + 2, 7).setValue(borrowerEmail); // Update Current Borrower
+          inventorySheet.getRange(i + 2, 8).setValue(borrowerName); // Update Student Name
+          inventorySheet.getRange(i + 2, 9).setValue(borrowerClass); // Update Class
+          inventorySheet.getRange(i + 2, 10).setValue(new Date()); // Update Loan Date
+          inventorySheet.getRange(i + 2, 11).setValue(new Date(new Date().setDate(new Date().getDate() + 7))); // Expected Return Date
+
+          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Lend Item', new Date(), '', userEmail);
+
+        // Action: Return Item
+        } else if (action === 'Return Item') {
+          if (currentStatus === 'In Stock') {
+            ui.alert('Error: The item "' + inventoryData[i][1] + '" is already in stock.');
+            return;
+          }
+
+          inventorySheet.getRange(i + 2, 5).setValue('In Stock'); // Update Status to "In Stock"
+          inventorySheet.getRange(i + 2, 7).setValue(''); // Clear Current Borrower
+          inventorySheet.getRange(i + 2, 8).setValue(''); // Clear Student Name
+          inventorySheet.getRange(i + 2, 9).setValue(''); // Clear Class
+          inventorySheet.getRange(i + 2, 10).setValue(''); // Clear Loan Date
+          inventorySheet.getRange(i + 2, 11).setValue(''); // Clear Expected Return Date
+
+          var returnDate = new Date();
+          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Return Item', '', returnDate, userEmail);
+
+        // Action: Hold Item
+        } else if (action === 'Hold Item') {
+          var onHoldData = onHoldSheet.getRange(2, 1, onHoldSheet.getLastRow(), 6).getValues();
+          var isAlreadyOnHold = onHoldData.some(entry => entry[0] == itemID);
+
+          if (isAlreadyOnHold) {
+            ui.alert('Error: The item "' + inventoryData[i][1] + '" is already on hold.');
+            return;
+          }
+
+          inventorySheet.getRange(i + 2, onHoldColumnIndex + 1).setValue('Yes'); // Set "On Hold?" to Yes
+
+          var onHoldLastRow = onHoldSheet.getLastRow() + 1;
+          onHoldSheet.getRange(onHoldLastRow, 1).setValue(itemID);
+          onHoldSheet.getRange(onHoldLastRow, 2).setValue(itemName);
+          onHoldSheet.getRange(onHoldLastRow, 3).setValue(borrowerEmail);
+          onHoldSheet.getRange(onHoldLastRow, 4).setValue(borrowerName);
+          onHoldSheet.getRange(onHoldLastRow, 5).setValue(borrowerClass);
+          onHoldSheet.getRange(onHoldLastRow, 6).setValue(new Date()); // Correct Date Requested placement
+
+          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Hold Item', '', '', userEmail);
+
+        // Action: Remove Hold
+        } else if (action === 'Remove Hold') {
+          if (inventoryData[i][onHoldColumnIndex].toString().trim() !== 'Yes') {
+            ui.alert('Error: The item "' + inventoryData[i][1] + '" is not currently on hold.');
+            return;
+          }
+
+          inventorySheet.getRange(i + 2, onHoldColumnIndex + 1).setValue('No'); // Remove Hold
+
+          // Find and remove from On Hold sheet
+          var onHoldData = onHoldSheet.getRange(2, 1, onHoldSheet.getLastRow(), 6).getValues();
+          for (var j = 0; j < onHoldData.length; j++) {
+            if (onHoldData[j][0] == itemID) {
+              onHoldSheet.deleteRow(j + 2); // Remove the hold entry
+              break;
+            }
+          }
+
+          logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, 'Remove Hold', '', '', userEmail);
         }
 
-        // After updating, clear the Action and Borrower fields in Lending sheet
-        lendingSheet.getRange(row, 6).setValue(''); // Clear Action dropdown
-        lendingSheet.getRange(row, 3).setValue(''); // Clear Borrower Email in Lending
-        lendingSheet.getRange(row, 4).setValue(''); // Clear Borrower Name in Lending
-        lendingSheet.getRange(row, 5).setValue(''); // Clear Borrower Class in Lending
+        // Clear Lending Sheet fields
+        lendingSheet.getRange(row, 6).setValue('');
+        lendingSheet.getRange(row, 3).setValue('');
+        lendingSheet.getRange(row, 4).setValue('');
+        lendingSheet.getRange(row, 5).setValue('');
 
-        break; // Exit the loop after the match is found
+        break;
       }
     }
   }
 }
 
-// Function to log actions to the History sheet
-function logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, action, dueDate, userEmail) {
+function logHistoryAction(itemID, itemName, borrowerEmail, borrowerName, borrowerClass, action, dueDate, returnDate, userEmail) {
   var historySheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('History');
   var historyLastRow = historySheet.getLastRow() + 1;
-  
-  historySheet.getRange(historyLastRow, 1).setValue(new Date()); // Set Date of the entry
-  historySheet.getRange(historyLastRow, 2).setValue(itemID); // Set Item ID
-  historySheet.getRange(historyLastRow, 3).setValue(itemName); // Set Item Name
-  historySheet.getRange(historyLastRow, 4).setValue(borrowerEmail); // Set Email
-  historySheet.getRange(historyLastRow, 5).setValue(borrowerName); // Set Name
-  historySheet.getRange(historyLastRow, 6).setValue(borrowerClass); // Set Class
-  historySheet.getRange(historyLastRow, 7).setValue(action); // Set Action (Lend Item, Return Item, Hold Item, Remove Hold)
-  historySheet.getRange(historyLastRow, 8).setValue(dueDate); // Set Due Date (if applicable)
-  historySheet.getRange(historyLastRow, 9).setValue(userEmail); // Set Processed by (User who clicked Finalize)
+
+  historySheet.getRange(historyLastRow, 1).setValue(new Date());
+  historySheet.getRange(historyLastRow, 2).setValue(itemID);
+  historySheet.getRange(historyLastRow, 3).setValue(itemName);
+  historySheet.getRange(historyLastRow, 4).setValue(borrowerEmail);
+  historySheet.getRange(historyLastRow, 5).setValue(borrowerName);
+  historySheet.getRange(historyLastRow, 6).setValue(borrowerClass);
+  historySheet.getRange(historyLastRow, 7).setValue(action);
+  historySheet.getRange(historyLastRow, 8).setValue(dueDate);
+  historySheet.getRange(historyLastRow, 9).setValue(userEmail); // Set Processed by in column 9
+  historySheet.getRange(historyLastRow, 10).setValue(returnDate); // Set Return Date in column 10
 }
